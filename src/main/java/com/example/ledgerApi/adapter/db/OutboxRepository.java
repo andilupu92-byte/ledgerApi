@@ -22,13 +22,14 @@ public class OutboxRepository {
             String payload
     ) {}
 
-    public List<OutboxEvent> findTop50Unpublished() {
+    public List<OutboxEvent> findUnpublishedForUpdate() {
         String sql = """
-            SELECT id, transaction_id, request_id, payload 
-            FROM outbox 
-            WHERE published_at IS NULL 
-            ORDER BY created_at ASC 
+            SELECT id, transaction_id, request_id, payload
+            FROM outbox
+            WHERE published_at IS NULL
+            ORDER BY id
             LIMIT 50
+            FOR UPDATE SKIP LOCKED
             """;
 
         return jdbc.query(sql, (rs, i) -> new OutboxEvent(
@@ -40,7 +41,7 @@ public class OutboxRepository {
     }
 
     public void markAsPublished(Long id) {
-        String sql = "UPDATE outbox SET published_at = ? WHERE id = ?";
-        jdbc.update(sql, LocalDateTime.now(ZoneOffset.UTC), id);
+        jdbc.update("UPDATE outbox SET published_at = ? WHERE id = ?",
+                LocalDateTime.now(ZoneOffset.UTC), id);
     }
 }

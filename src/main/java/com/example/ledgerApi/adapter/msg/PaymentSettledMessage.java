@@ -1,12 +1,9 @@
 package com.example.ledgerApi.adapter.msg;
 
-import com.example.ledgerApi.domain.SupportedCurrency;
-import java.math.BigDecimal;
-
 public record PaymentSettledMessage(
+        String eventId,
         String paymentId,
         String merchantAccountId,
-        String settlementAccountId,
-        BigDecimal amount,
-        SupportedCurrency currency
+        String amount,
+        String currency
 ) {}
