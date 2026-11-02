@@ -1,39 +1,42 @@
 package com.example.ledgerApi.adapter.web;
 
+import com.example.ledgerApi.adapter.web.dto.LedgerDtos.AccountResponse;
+import com.example.ledgerApi.adapter.web.dto.LedgerDtos.OpenAccountRequest;
 import com.example.ledgerApi.application.AccountService;
-import com.example.ledgerApi.config.Idempotent;
 import com.example.ledgerApi.domain.Account;
-import com.example.ledgerApi.domain.Money;
+import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/accounts")
 public class AccountController {
-    public record OpenAccountRequest(String currency, String overdraftLimit) {}
-
-    public record AccountResponse(String id, String currency, String overdraftLimit, String balance) {
-        static AccountResponse of(Account a) {
-            return new AccountResponse(a.id(), a.currency().name(),
-                    a.unlimitedOverdraft() ? null : Money.format(a.overdraftLimit(), a.currency()),
-                    Money.format(a.balance(), a.currency()));
-        }
-    }
 
     private final AccountService service;
 
-    public AccountController(AccountService service) { this.service = service; }
+    public AccountController(AccountService service) {
+        this.service = service;
+    }
 
     @PostMapping
-    @Idempotent(operation = "OPEN_ACCOUNT")
-    ResponseEntity<AccountResponse> open(@RequestBody OpenAccountRequest request) {
-        Account a = service.open(request.currency(), request.overdraftLimit());
-        return ResponseEntity.created(URI.create("/v1/accounts/" + a.id())).body(AccountResponse.of(a));
+    ResponseEntity<AccountResponse> open(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody @Valid OpenAccountRequest request
+    ) {
+        Account account = service.open(request, idempotencyKey);
+        return ResponseEntity.created(URI.create("/v1/accounts/" + account.id()))
+                .body(AccountService.toResponse(account));
     }
 
     @GetMapping("/{id}")
     AccountResponse get(@PathVariable String id) {
-        return AccountResponse.of(service.get(id));
+        return AccountService.toResponse(service.get(id));
     }
 }
