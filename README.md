@@ -1,1 +1,2 @@
-Idempotency: Implemented via @Idempotent aspect and an idempotency_key table. Every incoming request with an Idempotency-Key header has its payload hashed (SHA-256) and checked. If a retry occurs, the stored HTTP status and response body are returned immediately without re-executing business logic.
+Idempotency
+Implemented via **@Idempotent** aspect and an **idempotency_key** table. Every incoming request with an Idempotency-Key header has its payload hashed (SHA-256) and checked. If a retry occurs, the stored HTTP status and response body are returned immediately without re-executing business logic.
