@@ -164,3 +164,13 @@ Before production I would:
 - In the future, I will make sure to read the requirements more carefully, as I rushed through them this time.
 - I also had some issues with my GitHub account (I created a new one today because, for some reason, I couldn't figure out what happened to my old one). I started to panic a bit because time was running out and I felt like I hadn't made much progress.
 - I didn't manage to test all the APIs. For example, I didn't have MySQL installed on my PC, so I couldn't verify whether the data was being inserted correctly into the database. I decided not to install it due to the limited time and because I'm having some issues with my C: drive, which is almost full.
+- Move secrets out of the repository: the database and broker credentials are demo defaults
+  (`ledger/ledger`, `guest/guest`) committed in `docker-compose.yml` and `application.yml`.
+  Before production I would read them from environment variables or a secrets manager
+  (Docker/Kubernetes secrets, Vault, AWS Secrets Manager), keep a `.env.example` in the repo while
+  the real `.env` stays in `.gitignore`, use a dedicated least-privilege database user instead of
+  root, rotate credentials regularly, and scan the repository for leaked secrets in CI
+  (for example gitleaks).
+- Protect sensitive data in transit, at rest and in logs: TLS for the API, MySQL and the broker;
+  encryption at rest; and make sure logs never contain credentials or personal data. The debug
+  endpoint for sample payment-settled messages would be disabled or secured outside demo use.
