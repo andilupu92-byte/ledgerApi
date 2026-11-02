@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: Ledger API
+  version: 1.0.0
+  description: Double-entry ledger. Amounts are decimal strings in major units ("125.50"); never floats.
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/accounts:
+    post:
+      summary: Open an account
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OpenAccount' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /v1/accounts/{id}:
+    get:
+      summary: Read an account with its current balance
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/transactions:
+    post:
+      summary: Record a transaction (all or nothing)
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordTransaction' }
+      responses:
+        '201': { description: Recorded }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /v1/transactions/{id}:
+    get:
+      summary: Read a transaction with its entries
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/transactions/{id}/reversal:
+    post:
+      summary: Reverse a transaction (once; a reversal cannot be reversed)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '201': { description: Reversal recorded }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem details with a stable `code` and `errors[]` pointing at the faulty part of the request
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    OpenAccount:
+      type: object
+      required: [currency]
+      properties:
+        currency: { type: string, example: EUR }
+        overdraftLimit: { type: string, example: "0.00", description: "Optional, >= 0, in the account currency" }
+    Account:
+      type: object
+      properties:
+        id: { type: string }
+        currency: { type: string }
+        overdraftLimit: { type: string }
+        balance: { type: string }
+    RecordTransaction:
+      type: object
+      required: [description, entries]
+      properties:
+        description: { type: string }
+        entries:
+          type: array
+          items:
+            type: object
+            required: [accountId, direction, amount]
+            properties:
+              accountId: { type: string }
+              direction: { type: string, enum: [DEBIT, CREDIT] }
+              amount: { type: string, example: "100.00" }
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, example: UNBALANCED }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              pointer: { type: string, example: /entries/1/amount }
+              detail: { type: string }
