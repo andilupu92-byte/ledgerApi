@@ -1,6 +1,7 @@
 package com.example.ledgerApi.adapter.web;
 
 import com.example.ledgerApi.application.AccountService;
+import com.example.ledgerApi.config.Idempotent;
 import com.example.ledgerApi.domain.Account;
 import com.example.ledgerApi.domain.Money;
 import java.net.URI;
@@ -25,6 +26,7 @@ public class AccountController {
     public AccountController(AccountService service) { this.service = service; }
 
     @PostMapping
+    @Idempotent(operation = "OPEN_ACCOUNT")
     ResponseEntity<AccountResponse> open(@RequestBody OpenAccountRequest request) {
         Account a = service.open(request.currency(), request.overdraftLimit());
         return ResponseEntity.created(URI.create("/v1/accounts/" + a.id())).body(AccountResponse.of(a));
