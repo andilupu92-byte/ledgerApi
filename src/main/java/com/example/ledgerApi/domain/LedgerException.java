@@ -2,8 +2,6 @@ package com.example.ledgerApi.domain;
 
 import java.util.List;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 public class LedgerException extends RuntimeException {
     public record FieldError(String pointer, String detail) {}
 
