@@ -82,4 +82,20 @@ public class TransactionRepository {
                 rs.getLong("balance_after")
         ), transactionId);
     }
+
+    public boolean existsSettledPayment(String paymentId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM settled_payment WHERE payment_id = ?", Integer.class, paymentId);
+        return count != null && count > 0;
+    }
+
+    public void insertSettledPayment(String paymentId, String amount, String currency) {
+        jdbc.update("""
+            INSERT INTO settled_payment (payment_id, amount, currency, processed_at)
+            VALUES (?, ?, ?, ?)""",
+                paymentId, amount, currency,
+                java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+        );
+    }
+
 }

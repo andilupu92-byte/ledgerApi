@@ -2,6 +2,7 @@ package com.example.ledgerApi.application;
 
 import com.example.ledgerApi.adapter.db.AccountRepository;
 import com.example.ledgerApi.adapter.db.TransactionRepository;
+import com.example.ledgerApi.adapter.msg.PaymentSettledMessage;
 import com.example.ledgerApi.adapter.web.TransactionController;
 import com.example.ledgerApi.domain.*;
 import java.time.Instant;
@@ -161,6 +162,27 @@ public class TransactionService {
         transactionRepository.insertOutbox(txId, requestId, "{\"transactionId\":\"" + txId + "\"}");
 
         return new TransactionResult(tx, savedEntries);
+    }
+
+    @Transactional
+    public void processSettledPayment(PaymentSettledMessage message) {
+        if (transactionRepository.existsSettledPayment(message.paymentId())) {
+            return;
+        }
+
+        var entryRequests = List.of(
+                new TransactionController.EntryRequest(message.settlementAccountId(), "DEBIT", message.amount().toString()),
+                new TransactionController.EntryRequest(message.merchantAccountId(), "CREDIT", message.amount().toString())
+        );
+
+        var request = new TransactionController.RecordTransactionRequest(
+                "Settled payment " + message.paymentId(),
+                entryRequests
+        );
+
+        executeTransactionCore(request, null, "SETTLED-" + message.paymentId());
+
+        transactionRepository.insertSettledPayment(message.paymentId(), message.amount().toString(), message.currency().name());
     }
 
     private record EntryDraft(Account account, EntryDirection direction, long amount) {}
