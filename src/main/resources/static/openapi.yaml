@@ -39,9 +39,8 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/RecordTransaction' }
       responses:
-        '201': { description: Recorded }
+        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
         '400': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
   /v1/transactions/{id}:
@@ -49,7 +48,7 @@ paths:
       summary: Read a transaction with its entries
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
-        '200': { description: OK }
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
         '404': { $ref: '#/components/responses/Problem' }
   /v1/transactions/{id}/reversal:
     post:
@@ -58,10 +57,20 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string } }
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 128 } }
       responses:
-        '201': { description: Reversal recorded }
+        '201': { description: Reversal recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
+  /v1/debug/payment-settled:
+    post:
+      summary: Publish a sample payment-settled message to RabbitMQ
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentSettled' }
+      responses:
+        '202': { description: Published to the broker }
 components:
   responses:
     Problem:
@@ -90,6 +99,7 @@ components:
         description: { type: string }
         entries:
           type: array
+          minItems: 2
           items:
             type: object
             required: [accountId, direction, amount]
@@ -97,6 +107,32 @@ components:
               accountId: { type: string }
               direction: { type: string, enum: [DEBIT, CREDIT] }
               amount: { type: string, example: "100.00" }
+    Transaction:
+      type: object
+      properties:
+        id: { type: string }
+        description: { type: string }
+        recordedAt: { type: string, format: date-time }
+        reversesTransactionId: { type: string, nullable: true }
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              accountId: { type: string }
+              direction: { type: string }
+              amount: { type: string }
+              balanceAfter: { type: string }
+    PaymentSettled:
+      type: object
+      required: [eventId, paymentId, merchantAccountId, amount, currency]
+      properties:
+        eventId: { type: string }
+        paymentId: { type: string }
+        merchantAccountId: { type: string }
+        amount: { type: string, example: "125.50" }
+        currency: { type: string, example: EUR }
     Problem:
       type: object
       properties:
@@ -104,11 +140,11 @@ components:
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
-        code: { type: string, example: UNBALANCED }
+        code: { type: string, example: UNBALANCED_TRANSACTION }
         errors:
           type: array
           items:
             type: object
             properties:
-              pointer: { type: string, example: /entries/1/amount }
+              pointer: { type: string, example: entries[1].amount }
               detail: { type: string }
