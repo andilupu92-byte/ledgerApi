@@ -1,13 +1,15 @@
 package com.example.ledgerApi.adapter.db;
 
-import com.example.ledgerApi.domain.*;
+import com.example.ledgerApi.domain.Entry;
+import com.example.ledgerApi.domain.EntryDirection;
+import com.example.ledgerApi.domain.LedgerTransaction;
+import com.example.ledgerApi.domain.SupportedCurrency;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -44,13 +46,17 @@ public class TransactionRepository {
             ps.setLong(5, entry.balanceAfter());
             return ps;
         }, keyHolder);
-        return keyHolder.getKey().longValue();
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Entry insert did not return an id");
+        }
+        return key.longValue();
     }
 
     public void insertOutbox(String transactionId, String requestId, String payloadJson) {
         jdbc.update("""
             INSERT INTO outbox (transaction_id, request_id, payload, created_at)
-            VALUES (?, ?, ?, ?)""",
+            VALUES (?, ?, CAST(? AS JSON), ?)""",
                 transactionId, requestId, payloadJson,
                 LocalDateTime.now(ZoneOffset.UTC)
         );
@@ -60,7 +66,7 @@ public class TransactionRepository {
         return jdbc.query("SELECT * FROM ledger_transaction WHERE id = ?", (rs, i) -> new LedgerTransaction(
                 rs.getString("id"),
                 rs.getString("description"),
-                rs.getObject("recorded_at", java.time.LocalDateTime.class).atZone(java.time.ZoneOffset.UTC).toInstant(),
+                rs.getObject("recorded_at", LocalDateTime.class).toInstant(ZoneOffset.UTC),
                 rs.getString("reverses_transaction_id")
         ), id).stream().findFirst();
     }
@@ -72,30 +78,52 @@ public class TransactionRepository {
     }
 
     public List<Entry> findEntriesByTransactionId(String transactionId) {
-        return jdbc.query("SELECT * FROM entry WHERE transaction_id = ?", (rs, i) -> new Entry(
+        return jdbc.query("""
+                SELECT e.*, a.currency
+                FROM entry e
+                JOIN account a ON a.id = e.account_id
+                WHERE e.transaction_id = ?
+                ORDER BY e.id
+                """, (rs, i) -> new Entry(
                 rs.getLong("id"),
                 rs.getString("transaction_id"),
                 rs.getString("account_id"),
-                SupportedCurrency.valueOf(rs.getString("currency") != null ? rs.getString("currency") : "EUR"), // Ajustează dacă ții moneda în cont sau în entry
+                SupportedCurrency.valueOf(rs.getString("currency")),
                 EntryDirection.valueOf(rs.getString("direction")),
                 rs.getLong("amount"),
                 rs.getLong("balance_after")
         ), transactionId);
     }
 
-    public boolean existsSettledPayment(String paymentId) {
-        Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM settled_payment WHERE payment_id = ?", Integer.class, paymentId);
-        return count != null && count > 0;
+    public Optional<String> findSettledPaymentForUpdate(String paymentId) {
+        return jdbc.query(
+                "SELECT transaction_id FROM settled_payment WHERE payment_id = ? FOR UPDATE",
+                (rs, i) -> rs.getString("transaction_id"),
+                paymentId
+        ).stream().findFirst();
     }
 
-    public void insertSettledPayment(String paymentId, String amount, String currency) {
+    public void claimSettledPayment(String paymentId, String eventId, String requestHash) {
         jdbc.update("""
-            INSERT INTO settled_payment (payment_id, amount, currency, processed_at)
-            VALUES (?, ?, ?, ?)""",
-                paymentId, amount, currency,
-                java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+            INSERT INTO settled_payment (payment_id, event_id, request_hash, transaction_id, created_at)
+            VALUES (?, ?, ?, NULL, ?)
+            """,
+                paymentId, eventId, requestHash, LocalDateTime.now(ZoneOffset.UTC)
         );
     }
 
+    public void attachSettledPayment(String paymentId, String transactionId) {
+        jdbc.update("UPDATE settled_payment SET transaction_id = ? WHERE payment_id = ?",
+                transactionId, paymentId);
+    }
+
+    public long countTransactions() {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM ledger_transaction", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    public long countEntries() {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM entry", Long.class);
+        return count == null ? 0 : count;
+    }
 }
