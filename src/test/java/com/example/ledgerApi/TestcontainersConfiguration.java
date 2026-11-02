@@ -8,18 +8,17 @@ import org.testcontainers.rabbitmq.RabbitMQContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
-	@Bean
-	@ServiceConnection
-	MySQLContainer mysqlContainer() {
-		return new MySQLContainer(DockerImageName.parse("mysql:latest"));
-	}
+    @Bean
+    @ServiceConnection
+    MySQLContainer mysqlContainer() {
+        return new MySQLContainer(DockerImageName.parse("mysql:8.4.6"));
+    }
 
-	@Bean
-	@ServiceConnection
-	RabbitMQContainer rabbitContainer() {
-		return new RabbitMQContainer(DockerImageName.parse("rabbitmq:latest"));
-	}
-
+    @Bean
+    @ServiceConnection
+    RabbitMQContainer rabbitContainer() {
+        return new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.13-management"));
+    }
 }
